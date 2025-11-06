@@ -62,7 +62,7 @@ getrandom = "0.3"
 opt-level = 3     # Maximum optimization level
 lto = "fat"       # Link-time optimization (whole program optimization)
 codegen-units = 1 # Single codegen unit for better optimization
-panic = "abort"   # Abort on panic instead of unwinding (smaller, faster)
+# panic = "abort"   # Abort on panic instead of unwinding (smaller, faster)
 # strip = true             # Removed: Keep debug symbols for better crash reports
 # overflow-checks = false  # Removed: Keep overflow checks for safety in crypto code
 
