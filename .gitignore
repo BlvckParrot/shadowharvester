@@ -6,3 +6,8 @@ result*
 *.mnemonic
 challenges.json
 state*
+mining_data
+.cargo
+run.*
+seed.*
+.DS_Store
