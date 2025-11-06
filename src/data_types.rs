@@ -1,13 +1,11 @@
-
-
 // src/data_types.rs
 
-use std::borrow::Cow;
-use std::hash::{Hash, Hasher, DefaultHasher};
-use std::path::PathBuf;
-use std::io::Write;
 use reqwest::blocking;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::io::Write;
+use std::path::PathBuf;
 
 // ===============================================
 // API RESPONSE STRUCTS (Minimal subset)
@@ -66,7 +64,6 @@ pub struct DonateResponse {
     #[serde(rename = "donation_id")]
     pub donation_id: String,
 }
-
 
 #[derive(Debug, Deserialize)]
 pub struct ApiErrorResponse {
@@ -143,7 +140,6 @@ pub struct MiningContext {
     pub data_dir: Option<String>,
 }
 
-
 // Holds the data needed to submit a solution later.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PendingSolution {
@@ -152,7 +148,7 @@ pub struct PendingSolution {
     pub nonce: String,
     pub donation_address: Option<String>,
     // FIX: Add fields for error logging and identification
-    pub preimage: String, // The full string used for hashing
+    pub preimage: String,    // The full string used for hashing
     pub hash_output: String, // The final Blake2b hash output (hex encoded)
 }
 
@@ -167,7 +163,6 @@ pub struct FailedSolution {
     pub preimage: String,
     pub hash_output: String,
 }
-
 
 // Define a result type for the mining cycle
 #[derive(Debug, PartialEq)]
@@ -197,7 +192,10 @@ pub enum SubmitterCommand {
     SaveState(String, String), // Key, Value
     /// Command to retrieve data from SLED (used for synchronous lookups like next index).
     /// Value is sent back on the provided response channel.
-    GetState(String, std::sync::mpsc::Sender<Result<Option<String>, String>>),
+    GetState(
+        String,
+        std::sync::mpsc::Sender<Result<Option<String>, String>>,
+    ),
     /// Command to initiate solution submission (used in non-WS mode).
     SubmitSolution(PendingSolution),
     /// Signal to gracefully shut down the submitter.
@@ -217,13 +215,11 @@ pub struct BackupEntry {
     pub value: String,
 }
 
-
 // --- DataDir Structures and Constants (Kept for Migration/Compatibility) ---
 pub const FILE_NAME_CHALLENGE: &str = "challenge.json";
 pub const FILE_NAME_RECEIPT: &str = "receipt.json";
 pub const FILE_NAME_FOUND_SOLUTION: &str = "found.json";
 pub const SLED_KEY_FAILED_SOLUTION: &str = "failed_solution"; // FIX: Added new Sled key prefix
-
 
 #[derive(Debug, Clone, Copy)]
 pub enum DataDir<'a> {
@@ -239,15 +235,15 @@ pub struct DataDirMnemonic<'a> {
     pub deriv_index: u32,
 }
 
-fn normalize_challenge_id(challenge_id: &str) -> Cow<str> {
+fn normalize_challenge_id(challenge_id: &str) -> String {
     #[cfg(target_os = "windows")]
     {
         // Directories with '*' are not supported on windows
-        challenge_id.replace("*", "").into()
+        challenge_id.replace("*", "")
     }
     #[cfg(not(target_os = "windows"))]
     {
-        challenge_id.into()
+        challenge_id.to_string()
     }
 }
 
@@ -258,7 +254,7 @@ impl<'a> DataDir<'a> {
         let challenge_id_normalized = normalize_challenge_id(challenge_id);
 
         let mut path = PathBuf::from(base_dir);
-        path.push(challenge_id_normalized.as_ref());
+        path.push(normalize_challenge_id(challenge_id));
         Ok(path)
     }
 
@@ -269,11 +265,11 @@ impl<'a> DataDir<'a> {
             DataDir::Persistent(mining_address) => {
                 path.push("persistent");
                 path.push(mining_address);
-            },
+            }
             DataDir::Ephemeral(mining_address) => {
                 path.push("ephemeral");
                 path.push(mining_address);
-            },
+            }
             DataDir::Mnemonic(wallet) => {
                 path.push("mnemonic");
 
@@ -300,8 +296,12 @@ impl<'a> DataDir<'a> {
         let mut path = self.challenge_dir(base_dir, &challenge.challenge_id)?;
         path.push(FILE_NAME_CHALLENGE);
 
-        let challenge_json = serde_json::to_string(challenge)
-            .map_err(|e| format!("Could not serialize challenge {}: {}", &challenge.challenge_id, e))?;
+        let challenge_json = serde_json::to_string(challenge).map_err(|e| {
+            format!(
+                "Could not serialize challenge {}: {}",
+                &challenge.challenge_id, e
+            )
+        })?;
 
         std::fs::write(&path, challenge_json)
             .map_err(|e| format!("Could not write {}: {}", FILE_NAME_CHALLENGE, e))?;
@@ -310,14 +310,23 @@ impl<'a> DataDir<'a> {
     }
 
     // Saves a PendingSolution to the queue directory
-    pub fn save_pending_solution(&self, base_dir: &str, solution: &PendingSolution) -> Result<(), String> {
+    pub fn save_pending_solution(
+        &self,
+        base_dir: &str,
+        solution: &PendingSolution,
+    ) -> Result<(), String> {
         let mut path = PathBuf::from(base_dir);
         path.push("pending_submissions"); // Dedicated directory for the queue
         std::fs::create_dir_all(&path)
             .map_err(|e| format!("Could not create pending_submissions directory: {}", e))?;
 
         // Use a unique file name based on challenge, address, and nonce
-        path.push(format!("{}_{}_{}.json", solution.address, normalize_challenge_id(&solution.challenge_id), solution.nonce));
+        path.push(format!(
+            "{}_{}_{}.json",
+            solution.address,
+            normalize_challenge_id(&solution.challenge_id),
+            solution.nonce
+        ));
 
         let solution_json = serde_json::to_string(solution)
             .map_err(|e| format!("Could not serialize pending solution: {}", e))?;
@@ -329,7 +338,12 @@ impl<'a> DataDir<'a> {
     }
 
     // Saves the temporary file indicating a solution was found but not queued/submitted
-    pub fn save_found_solution(&self, base_dir: &str, challenge_id: &str, solution: &PendingSolution) -> Result<(), String> {
+    pub fn save_found_solution(
+        &self,
+        base_dir: &str,
+        challenge_id: &str,
+        solution: &PendingSolution,
+    ) -> Result<(), String> {
         let mut path = self.receipt_dir(base_dir, challenge_id)?; // Use receipt dir for local persistence
         path.push(FILE_NAME_FOUND_SOLUTION);
 
@@ -362,7 +376,11 @@ impl<'a> DataDir<'a> {
 }
 
 // Checks if an address/challenge has a pending submission file in the queue dir
-pub fn is_solution_pending_in_queue(base_dir: &str, address: &str, challenge_id: &str) -> Result<bool, String> {
+pub fn is_solution_pending_in_queue(
+    base_dir: &str,
+    address: &str,
+    challenge_id: &str,
+) -> Result<bool, String> {
     use std::path::PathBuf;
 
     let mut path = PathBuf::from(base_dir);
@@ -374,7 +392,12 @@ pub fn is_solution_pending_in_queue(base_dir: &str, address: &str, challenge_id:
             if let Some(filename) = entry.file_name().to_str() {
                 // Check if the filename starts with the required prefix and is a JSON file
                 // The filename format is: address_challenge_id_nonce.json
-                if filename.starts_with(&format!("{}_{}_", address, normalize_challenge_id(&challenge_id))) && filename.ends_with(".json") {
+                if filename.starts_with(&format!(
+                    "{}_{}_",
+                    address,
+                    normalize_challenge_id(&challenge_id)
+                )) && filename.ends_with(".json")
+                {
                     return Ok(true);
                 }
             }
