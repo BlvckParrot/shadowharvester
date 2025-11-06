@@ -5,7 +5,7 @@ result*
 *.vkey
 *.mnemonic
 challenges.json
-state*
+/state*
 mining_data
 .cargo
 run.*
